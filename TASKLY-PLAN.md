@@ -131,15 +131,16 @@ httpapi / grpcapi / consumer ──> service ──> storage, events, notifiercl
 - **Docker-first:** усе, що запускається (бази, Kafka, обидві служби), живе в `docker compose` з першого дня.
   Локально лишається лише Go-тулчейн для GoLand, `gofmt`/`vet`/тестів.
 - Корінь цього репо з `go.work`, двома модулями й мінімальними `main` (пишуть один slog-рядок і чекають сигналу).
-- Multi-stage `Dockerfile` для кожної служби (stage збірки + маленький runtime-образ), `.dockerignore`.
-- `deploy/docker-compose.yml`: PostgreSQL з healthcheck і volume, дві служби; перезбірка при зміні коду
-  через `develop.watch`. Makefile: `make up`, `make down`, `make logs`.
+- Multi-stage `Dockerfile` для кожної служби: `dev` (Go + `air`, код через bind mount) і `prod` (distroless, ~10 МБ), `.dockerignore`.
+- `deploy/docker-compose.yml`: PostgreSQL з healthcheck і volume, дві служби з `target: dev`; live reload
+  через `air` у контейнері. Makefile: `make up`, `make down`, `make logs`, `make check`.
 - **Готово, коли:** `make up` піднімає базу й обидві служби, `docker compose ps` показує їх живими,
   зміна в `main.go` перезбирає контейнер, `go build ./...` локально проходить.
 
 ### S1 — Скелет `taskly-api`
 **Читати:** 21 (`net/http`), 23 (`slog`), 26 (конфіг, таймаути, graceful shutdown).
 - `Config` з env, `slog` у JSON, HTTP-сервер з таймаутами, `/healthz`, коректна зупинка на Ctrl+C.
+- Логер з вибором формату через `LOG_FORMAT=pretty|json`: кольоровий (`lmittmann/tint`, API звірити з докою) для розробки, JSON для продакшну. Перевірити кольори в `docker compose logs`.
 - **Готово, коли:** сервер стартує, пише JSON-логи, `/healthz` відповідає `200`, Ctrl+C зупиняє без обірваних запитів.
 
 ### S2 — Задачі в PostgreSQL + REST
@@ -224,8 +225,9 @@ httpapi / grpcapi / consumer ──> service ──> storage, events, notifiercl
 Легенда: `[ ]` не почато · `[~]` в процесі · `[x]` зроблено й перевірено
 
 ```
-[ ] S0  [ ] S1  [ ] S2  [ ] S3  [ ] S4  [ ] S5  [ ] S6  [ ] S7  [ ] S8  [ ] S9  [ ] S10
+[x] S0  [ ] S1  [ ] S2  [ ] S3  [ ] S4  [ ] S5  [ ] S6  [ ] S7  [ ] S8  [ ] S9  [ ] S10
 ```
 
 Нотатки до етапів (що пропущено, що відкладено) — сюди, по рядку на етап.
 - 2026-11-23: рішення — Docker-first з S0 (служби й інфраструктура в compose від початку, а не з S10).
+- S0: dev через `air` у контейнері замість `develop.watch` (схоже на `nest --watch`). `go.work` і `go.work.sum` комітимо. Дебагер (Delve у контейнері) — відкладено, налаштуємо, коли знадобиться.

@@ -1,0 +1,45 @@
+name: taskly
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is not set}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  taskly-api:
+    build:
+      context: ../services/taskly-api
+      target: dev
+    volumes:
+      - ../services/taskly-api:/src
+      - gomod:/go/pkg/mod
+      - gocache:/root/.cache/go-build
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  notifier:
+    build:
+      context: ../services/notifier
+      target: dev
+    volumes:
+      - ../services/notifier:/src
+      - gomod:/go/pkg/mod
+      - gocache:/root/.cache/go-build
+
+volumes:
+  pgdata:
+  gomod:
+  gocache:
